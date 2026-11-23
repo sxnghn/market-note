@@ -1,0 +1,36 @@
+name: update
+
+on:
+  schedule:
+    - cron: '20 22 * * 0-4'   # 07:20 KST, Mon-Fri: previous US session
+    - cron: '45 7 * * 1-5'    # 16:45 KST, Mon-Fri: Korean close
+    - cron: '10 11 * * 1-5'   # 20:10 KST, Mon-Fri: retry if the Korean day was not posted yet
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - name: Fetch data
+        run: python scripts/update.py
+      - name: Commit data
+        run: |
+          git config user.name "market-bot"
+          git config user.email "market-bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -m "data $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M')"
+          git pull --rebase origin main
+          git push
