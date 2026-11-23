@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>코스피·코스닥 분석</title>
+<meta name="description" content="장 열기 전에는 밤사이 미국 장을, 장이 끝난 뒤에는 누가 지수를 움직였는지 봅니다.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+:root{
+--font-anthropic-sans:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+--font-anthropic-serif:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+--color-bg:#f6f6f4;--color-panel:#ffffff;--color-fg:#1b1b1a;--color-fg-muted:#6b6a66;--color-border-line:#e3e2de;
+--color-ok:#d33b2c;--color-bad:#2a62d4;
+--cds-text-secondary:#6b6a66;--cds-surface-popover:#ffffff;--cds-border:#e3e2de;--cds-shadow-popover:0 4px 16px rgba(0,0,0,.08);
+--cds-chart-grid:#ecebe7;--cds-chart-reference:#b9b7b0;
+--cds-font-size-title:1.9rem;--cds-font-size-heading:1.15rem;--cds-font-size-body:.95rem;--cds-font-size-caption:.8rem;--cds-font-weight-medium:600;
+--cds-gap-xs:4px;--cds-gap-sm:8px;--cds-gap-md:14px;--cds-gap-lg:20px;--cds-gap-xl:44px;--cds-pad-md:12px;--cds-pad-lg:18px;--cds-radius:10px;
+--line1:#2b6cb0;--line2:#d9822b}
+@media (prefers-color-scheme:dark){:root{
+--color-bg:#161615;--color-panel:#1f1f1d;--color-fg:#ecebe7;--color-fg-muted:#9b9a95;--color-border-line:#33322f;
+--color-ok:#f0645a;--color-bad:#5b8ef0;--cds-text-secondary:#9b9a95;--cds-surface-popover:#262624;--cds-border:#3a3936;
+--cds-chart-grid:#2c2b29;--cds-chart-reference:#5c5b57;--line1:#6ea8ff;--line2:#f0a65a}}
+html{background:var(--color-bg)}
+body{margin:0;padding:28px 18px 60px;background:var(--color-bg);-webkit-text-size-adjust:100%}
+.dash-select{font:inherit;font-size:var(--cds-font-size-body);padding:7px 10px;border-radius:8px;border:1px solid var(--color-border-line);background:var(--color-panel);color:var(--color-fg)}
+.mn .upd{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);margin:0 0 var(--cds-gap-md)}
+.mn footer{margin-top:var(--cds-gap-xl);font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);line-height:1.7}
+
+.mn{font-family:var(--font-anthropic-sans);color:var(--color-fg);max-width:1040px;margin:0 auto}
+.mn h1{font-weight:700;letter-spacing:-.01em;font-size:var(--cds-font-size-title);margin:0 0 var(--cds-gap-xs)}
+.mn h2{font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium);margin:0 0 var(--cds-gap-xs)}
+.mn .sub{color:var(--color-fg-muted);margin:0 0 var(--cds-gap-md);line-height:1.6;max-width:72ch}
+.mn section{margin:0 0 var(--cds-gap-xl)}
+.mn .bar{display:flex;flex-wrap:wrap;gap:var(--cds-gap-md);align-items:center;margin:0 0 var(--cds-gap-lg)}
+.mn .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--cds-gap-md)}
+.mn .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--cds-gap-md)}
+.mn .tile{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-md) var(--cds-pad-lg)}
+.mn .tile .v{font-weight:700;font-size:1.6rem;font-variant-numeric:tabular-nums;line-height:1.2}
+.mn tr.hit td{background:var(--color-bg);font-weight:var(--cds-font-weight-medium)}
+.mn .card{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-lg)}
+.mn .mk{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);margin:0 0 var(--cds-gap-xs)}
+.mn .big{font-weight:700;font-size:2.1rem;font-variant-numeric:tabular-nums;line-height:1.1}
+.mn .chg{font-size:var(--cds-font-size-heading);font-variant-numeric:tabular-nums;margin-left:8px}
+.mn .kv{display:grid;grid-template-columns:1fr auto;gap:6px 12px;margin-top:var(--cds-gap-md);font-size:var(--cds-font-size-body);font-variant-numeric:tabular-nums}
+.mn .kv span:nth-child(odd){color:var(--color-fg-muted)}
+.mn .ok{color:var(--color-ok)} .mn .bad{color:var(--color-bad)} .mn .muted{color:var(--color-fg-muted)}
+.mn .read{line-height:1.8;max-width:72ch;margin:var(--cds-gap-md) 0 0}
+.mn .read p{margin:0 0 6px}
+.mn table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.mn th{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);font-weight:var(--cds-font-weight-medium);text-align:right;padding:5px 6px;border-bottom:1px solid var(--color-border-line);white-space:nowrap}
+.mn td{padding:6px;border-bottom:1px solid var(--color-border-line);text-align:right;white-space:nowrap}
+.mn th.l,.mn td.l{text-align:left}
+.mn .scroll{overflow-x:auto}
+.mn .chart{position:relative;min-height:240px}
+.mn .chart svg text{font-size:var(--cds-font-size-caption);fill:var(--cds-text-secondary)}
+.mn .tip{position:absolute;pointer-events:none;background:var(--cds-surface-popover);border:1px solid var(--cds-border);box-shadow:var(--cds-shadow-popover);border-radius:var(--cds-radius);padding:6px 10px;font-size:var(--cds-font-size-caption);white-space:nowrap;line-height:1.5}
+.mn .seg{display:inline-flex;border:1px solid var(--color-border-line);border-radius:var(--cds-radius);overflow:hidden}
+.mn .seg button{border:0;background:transparent;color:var(--color-fg-muted);padding:6px 12px;font:inherit;cursor:pointer}
+.mn .seg button[aria-pressed=true]{background:var(--color-bg);color:var(--color-fg);font-weight:var(--cds-font-weight-medium)}
+.mn .note{border-left:3px solid var(--color-border-line);padding-left:var(--cds-pad-md);line-height:1.8;max-width:72ch}
+.mn .note h3{font-size:var(--cds-font-size-body);font-weight:var(--cds-font-weight-medium);margin:0 0 6px}
+.mn .tag{display:inline-block;font-size:var(--cds-font-size-caption);border:1px solid var(--color-border-line);border-radius:999px;padding:0 8px;margin-right:6px;color:var(--color-fg-muted)}
+.mn .cap{font-size:var(--cds-font-size-caption);color:var(--color-fg-muted);line-height:1.6;margin:var(--cds-gap-sm) 0 0}
+.mn details{border-top:1px solid var(--color-border-line);padding-top:var(--cds-gap-md)}
+.mn summary{cursor:pointer;font-weight:var(--cds-font-weight-medium)}
+.mn details li{line-height:1.7;margin:0 0 6px}
+.mn a{color:inherit}
+</style>
+</head>
+<body>
+<div class='mn'>
+<header id='top'>
+<h1>코스피·코스닥 분석</h1>
+<p class='sub'>장 열기 전에는 밤사이 미국 장이 오늘 코스피에 무엇을 남겼는지, 장이 끝난 뒤에는 누가 지수를 움직였고 시장 체력이 어땠는지 봅니다. 날짜를 바꾸면 지난 장을 다시 볼 수 있습니다.</p>
+<p class='upd' data-draw='updInfo'></p>
+<div class='bar'><select class='dash-select' data-draw='daySel' aria-label='거래일 선택' data-source='dayList'></select><span class='muted' data-draw='dayInfo'>—</span></div>
+</header>
+
+<section id='notes'>
+<h2>노트</h2>
+<div data-draw='noteBox' data-source='notes'>—</div>
+</section>
+
+<section id='night'>
+<h2>밤사이 미국</h2>
+<p class='sub' data-draw='nightInfo'>—</p>
+<div class='tiles' data-draw='nightTiles' data-source='us_ref'>—</div>
+<div class='card' style='margin-top:var(--cds-gap-md)'>
+<p class='mk'>오늘 코스피에 주는 신호</p>
+<div class='read' style='margin-top:0' data-draw='signalText' data-source='nightLink'>—</div>
+<div class='scroll' style='margin-top:var(--cds-gap-md)'><table data-source='nightLink'><thead><tr><th class='l'>EWY가 코스피 마감 뒤 더 움직인 폭</th><th>그런 날</th><th>다음 날 코스피 평균</th><th>중간값</th><th>오른 날</th></tr></thead><tbody data-draw='signalRows'></tbody></table></div>
+<p class='cap'>표는 고른 날 이전 자료만 씁니다. EWY는 미국에 상장된 한국 주식 ETF라 한국 장이 닫힌 뒤 나온 소식을 먼저 반영합니다. 같은 날 코스피 등락률을 빼면 한국 장 마감 이후에 더 움직인 몫이 남습니다. 환율 변동이 섞여 있고, 표본이 100여 일이라 방향을 가늠하는 정도로만 보세요.</p>
+</div>
+</section>
+
+<section id='summary'>
+<h2>그날 장 한눈에</h2>
+<div class='grid2'>
+<div class='card'><p class='mk'>코스피 (추정 지수)</p><div data-draw='sumK' data-source='mkt_days'>—</div></div>
+<div class='card'><p class='mk'>코스닥 (추정 지수)</p><div data-draw='sumQ' data-source='mkt_days'>—</div></div>
+<div class='card'><p class='mk' data-draw='sumNLabel'>나스닥100 (QQQ)</p><div data-draw='sumN' data-source='mkt_days'>—</div></div>
+</div>
+<div class='read' data-draw='readout' data-source='mkt_days movers'>—</div>
+</section>
+
+<section id='movers'>
+<h2>지수를 움직인 종목</h2>
+<p class='sub'>시가총액이 큰 종목이 크게 움직이면 지수도 따라 움직입니다. 기여도는 그 종목 하나가 지수 등락률에 보탠 몫(%p)입니다. 나스닥100은 고른 날 직전에 끝난 미국 장입니다. <span data-draw='mkDateInfo'></span></p>
+<div class='bar'><div class='seg' role='group' aria-label='시장'><button type='button' id='mk_k' aria-pressed='true'>코스피</button><button type='button' id='mk_q' aria-pressed='false'>코스닥</button><button type='button' id='mk_n' aria-pressed='false'>나스닥100</button></div><span data-draw='mkWire'></span></div>
+<div class='grid2'>
+<div class='card scroll'><p class='mk'>끌어올린 종목</p><table data-source='movers' data-row-key='date,market,side,rank'><thead><tr><th class='l' data-field='name'>종목</th><th data-field='chg'>등락 (%)</th><th data-field='contrib_pp'>기여 (%p)</th></tr></thead><tbody data-draw='upRows'></tbody></table></div>
+<div class='card scroll'><p class='mk'>끌어내린 종목</p><table data-source='movers' data-row-key='date,market,side,rank'><thead><tr><th class='l' data-field='name'>종목</th><th data-field='chg'>등락 (%)</th><th data-field='contrib_pp'>기여 (%p)</th></tr></thead><tbody data-draw='downRows'></tbody></table></div>
+</div>
+</section>
+
+<section id='active'>
+<h2>돈이 몰린 종목</h2>
+<p class='sub'>그날 거래대금 상위 10종목입니다.</p>
+<div class='card scroll'><table data-source='active' data-row-key='date,market,code'><thead><tr><th class='l' data-field='name'>종목</th><th>거래대금</th><th data-field='chg'>등락 (%)</th></tr></thead><tbody data-draw='actRows'></tbody></table></div>
+</section>
+
+<section id='health'>
+<h2>시장 체력</h2>
+<p class='sub'>지수만 보면 놓치는 것들입니다. 위는 추정 지수, 아래는 20일 이동평균 위에 있는 종목 비율입니다. 비율이 낮을수록 대부분 종목이 최근 한 달 흐름보다 약하다는 뜻입니다. 고른 날은 세로선으로 표시합니다.</p>
+<div class='card'><div class='chart' data-draw='healthChart' data-source='mkt_days' role='img' aria-label='추정 지수와 20일선 위 종목 비율 추이'></div></div>
+</section>
+
+<details id='about'>
+<summary>숫자를 읽을 때 알아 둘 것</summary>
+<ul>
+<li>지수는 거래소 공식 값이 아니라 전 종목 시가총액 합계로 다시 계산한 추정치입니다. 2026-11-20 실제 종가에 맞췄고, 하루 등락률은 실제와 대체로 0.1%p 안팎 차이가 납니다.</li>
+<li>미국 자료는 stockanalysis.com의 일별 종가입니다. 나스닥100 카드의 큰 숫자는 QQQ 종가와 등락률이고, 기여도와 종목 수는 구성 종목 101개로 다시 계산했습니다. 다시 계산한 지수는 QQQ와 하루 평균 0.4%p 차이가 납니다.</li>
+<li>외국인·기관 수급, 업종 지수, 환율은 이 데이터에 없습니다. 노트에 기사로 보탭니다.</li>
+<li>한국 휴장일은 따로 빼지 않았습니다. 밤사이 미국 장 다음 날을 평일 기준으로 잡습니다.</li>
+<li>시가총액은 지금 상장주식수로 계산해서, 그사이 주식 수가 바뀐 종목은 조금 어긋납니다.</li>
+<li>참고 자료일 뿐이고 특정 종목을 사거나 팔라는 뜻이 아닙니다.</li>
+</ul>
+</details>
+<footer>숫자: 이투데이(한국거래소 종가), stockanalysis.com(미국 종가). 하루 두 번 자동으로 갱신합니다. 참고 자료일 뿐이고 투자 권유가 아닙니다.</footer>
+</div>
+<script>
+
+const DATA = {}, ERR = {}, CALC = {}, DRAWS = {}, MOUNTED = {};
+const dash = {
+  colors: [getComputedStyle(document.documentElement).getPropertyValue('--line1').trim() || '#2b6cb0', getComputedStyle(document.documentElement).getPropertyValue('--line2').trim() || '#d9822b'],
+  data: (id) => DATA[id] !== undefined ? {status: 'ok', data: DATA[id]} : (ERR[id] ? {status: 'error'} : {status: 'loading'}),
+  calc: (id, o) => { CALC[id] = o; },
+  draw: (id, f) => {
+    if (f) { DRAWS[id] = f; return; }
+    const el = document.querySelector("[data-draw='" + id + "']"); const g = DRAWS[id];
+    if (!el || !g) return;
+    if (typeof g === 'function') { try { g(el); } catch (e) { console.error(id, e); } }
+    else if (!MOUNTED[id]) { MOUNTED[id] = true; g.mount(el); }
+  }
+};
+
+(function(){
+const addDay = (iso) => { const d = new Date(iso + 'T12:00:00Z'); do { d.setUTCDate(d.getUTCDate() + 1); } while (d.getUTCDay() === 0 || d.getUTCDay() === 6); return d.toISOString().slice(0, 10); };
+dash.calc('dayList', {
+  title: '거래일 목록',
+  description: '한국 거래일(최근 날짜부터). 미국 장이 한국 최근 거래일보다 늦게 끝났으면 다음 한국 평일을 장전용 날짜로 맨 앞에 붙입니다.',
+  inputs: ['mkt_days', 'us_ref'],
+  fn: (days, ref) => {
+    const kr = [...new Set(days.filter((d) => d.market !== '나스닥100').map((d) => d.date))].sort();
+    const out = kr.map((date) => ({date, pre: false}));
+    const lastUs = ref.map((r) => r.date).sort().pop();
+    if (lastUs && kr.length && lastUs >= kr[kr.length - 1]) out.push({date: addDay(lastUs), pre: true});
+    return out.reverse();
+  }
+});
+dash.calc('nightLink', {
+  title: '밤사이 미국 장과 다음 날 코스피',
+  description: '미국 거래일마다 EWY 등락률, 같은 날 코스피 등락률, 그 차이(gap), 그다음 한국 거래일의 코스피·코스닥 등락률.',
+  inputs: ['us_ref', 'mkt_days'],
+  fn: (ref, days) => {
+    const kp = new Map(), kq = new Map();
+    days.forEach((d) => { if (d.market === '코스피') kp.set(d.date, d.cap_ret); if (d.market === '코스닥') kq.set(d.date, d.cap_ret); });
+    const kd = [...kp.keys()].sort();
+    return ref.filter((r) => r.ewy != null).map((r) => {
+      const same = kp.has(r.date) ? kp.get(r.date) : null;
+      const next = kd.find((d) => d > r.date) || null;
+      return {date: r.date, ewy: r.ewy, kospi_same: same, gap: same == null ? null : Math.round((r.ewy - same) * 100) / 100, next_date: next, kospi_next: next ? kp.get(next) : null, kosdaq_next: next ? kq.get(next) : null};
+    });
+  }
+});
+window.mnState = window.mnState || {day: null, mk: '코스피'};
+const S = window.mnState;
+const dow = ['일', '월', '화', '수', '목', '금', '토'];
+const label = (iso) => { const d = new Date(iso + 'T12:00:00Z'); return (d.getUTCMonth() + 1) + '월 ' + d.getUTCDate() + '일 (' + dow[d.getUTCDay()] + ')'; };
+const nf = d3.format(',');
+const sg = (x, k) => x == null ? '' : (x > 0 ? '+' : '') + x.toFixed(k == null ? 2 : k);
+const cls = (x) => x == null ? 'muted' : x > 0 ? 'ok' : x < 0 ? 'bad' : '';
+const el = (tag, txt, c) => { const z = document.createElement(tag); if (txt != null) z.textContent = txt; if (c) z.className = c; return z; };
+const curDay = () => { if (S.day) return S.day; const l = dash.data('dayList'); return l.status === 'ok' && l.data[0] ? l.data[0].date : null; };
+const isPre = () => { const l = dash.data('dayList'); if (l.status !== 'ok') return false; const r = l.data.find((d) => d.date === curDay()); return !!(r && r.pre); };
+const usDate = () => { const r = dash.data('us_ref'); const d = curDay(); if (r.status !== 'ok' || !d) return null; const xs = r.data.map((x) => x.date).filter((x) => x < d).sort(); return xs.length ? xs[xs.length - 1] : null; };
+const mkDate = (mk) => mk === '나스닥100' ? usDate() : curDay();
+const BUCKETS = [{lo: -99, hi: -3, t: '3%p 넘게 더 빠짐'}, {lo: -3, hi: -1, t: '1-3%p 더 빠짐'}, {lo: -1, hi: 1, t: '1%p 안쪽'}, {lo: 1, hi: 3, t: '1-3%p 더 오름'}, {lo: 3, hi: 99, t: '3%p 넘게 더 오름'}];
+const bucketOf = (g) => BUCKETS.findIndex((b) => g >= b.lo && g < b.hi);
+const ALL = ['updInfo', 'dayInfo', 'noteBox', 'nightInfo', 'nightTiles', 'signalText', 'signalRows', 'sumK', 'sumQ', 'sumN', 'sumNLabel', 'readout', 'mkDateInfo', 'upRows', 'downRows', 'actRows', 'healthChart'];
+const redrawAll = () => ALL.forEach((n) => dash.draw(n));
+dash.draw('daySel', (sel) => {
+  const l = dash.data('dayList');
+  const list = l.status === 'ok' ? l.data : [];
+  sel.replaceChildren(...list.map((d) => new Option(label(d.date) + (d.pre ? ' 장전' : ''), d.date)));
+  const c = curDay(); if (c) sel.value = c;
+  sel.onchange = () => { S.day = sel.value; redrawAll(); };
+});
+dash.draw('dayInfo', (z) => {
+  const l = dash.data('dayList');
+  if (l.status !== 'ok' || !l.data.length) { z.textContent = '—'; return; }
+  z.textContent = isPre() ? '아직 한국 장 마감 자료가 없는 날입니다. 밤사이 미국과 노트만 보입니다.' : (curDay() === l.data.find((d) => !d.pre).date ? '마감 자료가 있는 가장 최근 거래일' : '');
+});
+dash.draw('mkWire', {
+  mount: () => {
+    const ids = {'코스피': 'mk_k', '코스닥': 'mk_q', '나스닥100': 'mk_n'};
+    const set = (m) => { S.mk = m; Object.entries(ids).forEach(([k, id]) => { const b = document.getElementById(id); if (b) b.setAttribute('aria-pressed', String(k === m)); }); ['mkDateInfo', 'upRows', 'downRows', 'actRows', 'healthChart'].forEach((n) => dash.draw(n)); };
+    Object.entries(ids).forEach(([k, id]) => { const b = document.getElementById(id); if (b) b.addEventListener('click', () => set(k)); });
+    return {};
+  },
+  update: () => {}
+});
+dash.draw('mkDateInfo', (z) => { const d = mkDate(S.mk); z.textContent = d ? '지금 보는 장: ' + (S.mk === '나스닥100' ? '미국 ' : '') + label(d) + '.' : ''; });
+dash.draw('noteBox', (box) => {
+  const s = dash.data('notes');
+  box.replaceChildren();
+  const sec = document.getElementById('notes');
+  if (s.status === 'ok' && !s.data.length) { if (sec) sec.hidden = true; return; }
+  if (sec) sec.hidden = false;
+  if (s.status !== 'ok') { box.textContent = s.status === 'error' ? '노트를 불러오지 못했습니다.' : '—'; return; }
+  const day = curDay();
+  const rows = s.data.filter((n) => n.date === day).sort((a, b) => (a.kind === '장전' ? -1 : 1));
+  if (!rows.length) {
+    const last = [...s.data].sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+    box.append(el('p', '이날 쓴 노트가 없습니다.' + (last ? ' 가장 최근 노트는 ' + label(last.date) + ' ' + last.kind + ' 노트입니다.' : ''), 'muted'));
+    return;
+  }
+  rows.forEach((n) => {
+    const b = el('div', null, 'note'); b.style.marginBottom = 'var(--cds-gap-md)';
+    const h = el('h3'); h.append(el('span', n.kind, 'tag'), document.createTextNode(n.title || ''));
+    b.append(h);
+    String(n.body || '').split('\n').forEach((line) => { if (!line.trim()) return; const q = el('p', line); q.style.margin = '0 0 6px'; b.append(q); });
+    if (n.watch) { const w = el('p'); w.style.margin = '6px 0 0'; w.append(el('b', '다음에 볼 것 '), document.createTextNode(n.watch)); b.append(w); }
+    if (n.src && String(n.src).startsWith('https://')) { const a = el('a', '출처 기사', 'cap'); a.href = n.src; a.target = '_blank'; a.rel = 'noopener'; a.style.display = 'inline-block'; b.append(a); }
+    box.append(b);
+  });
+});
+dash.draw('nightInfo', (z) => {
+  const u = usDate();
+  z.textContent = u ? '미국 ' + label(u) + ' 장. 한국 시간으로 ' + label(curDay()) + ' 아침에 끝났습니다.' : '이 날짜 직전의 미국 장 자료가 없습니다.';
+});
+dash.draw('nightTiles', (box) => {
+  const r = dash.data('us_ref');
+  box.replaceChildren();
+  if (r.status !== 'ok') { box.textContent = r.status === 'error' ? '불러오지 못했습니다.' : '—'; return; }
+  const row = r.data.find((x) => x.date === usDate());
+  if (!row) { box.append(el('p', '자료가 없습니다.', 'muted')); return; }
+  [['나스닥100 (QQQ)', row.qqq], ['S&P500 (SPY)', row.spy], ['미국 반도체 (SOXX)', row.soxx], ['한국 ETF (EWY)', row.ewy]].forEach(([k, v]) => {
+    const t = el('div', null, 'tile'); t.append(el('p', k, 'mk'), el('div', v == null ? '—' : sg(v) + '%', 'v ' + cls(v))); box.append(t);
+  });
+});
+function bucketStats(rows) {
+  return BUCKETS.map((b) => {
+    const xs = rows.filter((r) => r.gap >= b.lo && r.gap < b.hi).map((r) => r.kospi_next).sort((a, c) => a - c);
+    const n = xs.length;
+    return {t: b.t, n, mean: n ? d3.mean(xs) : null, med: n ? d3.median(xs) : null, up: xs.filter((x) => x > 0).length};
+  });
+}
+dash.draw('signalText', (box) => {
+  const s = dash.data('nightLink');
+  box.replaceChildren();
+  if (s.status !== 'ok') { box.textContent = s.status === 'error' ? '불러오지 못했습니다.' : '—'; return; }
+  const u = usDate(); const me = s.data.find((r) => r.date === u);
+  if (!me || me.gap == null) { box.append(el('p', '이날은 같은 날 코스피 자료가 없어 신호를 계산하지 못했습니다.', 'muted')); return; }
+  const past = s.data.filter((r) => r.gap != null && r.kospi_next != null && r.date < u);
+  const bi = bucketOf(me.gap); const st = bucketStats(past)[bi];
+  const lines = [];
+  lines.push('EWY ' + sg(me.ewy) + '%, 같은 날 코스피 ' + sg(me.kospi_same) + '%. 한국 장이 닫힌 뒤에 ' + Math.abs(me.gap).toFixed(1) + '%p 더 ' + (me.gap < 0 ? '빠졌습니다.' : '올랐습니다.'));
+  if (st && st.n >= 3) lines.push('지난 자료에서 이 구간(' + st.t + ')에 든 날은 ' + st.n + '번이고, 다음 날 코스피는 평균 ' + sg(st.mean) + '%, 오른 날은 ' + st.up + '번이었습니다.');
+  else if (st) lines.push('이 구간(' + st.t + ')에 든 날이 ' + st.n + '번뿐이라 평균을 내기엔 적습니다.');
+  if (me.kospi_next != null && me.next_date === curDay()) lines.push('실제로 이날 코스피는 ' + sg(me.kospi_next) + '%, 코스닥은 ' + sg(me.kosdaq_next) + '%였습니다.');
+  else if (isPre()) lines.push('오늘 장이 끝나면 실제 결과가 여기에 붙습니다.');
+  const hits = past.filter((r) => Math.abs(r.gap) >= 1);
+  if (hits.length >= 10) { const same = hits.filter((r) => Math.sign(r.gap) === Math.sign(r.kospi_next)).length; lines.push('차이가 1%p를 넘은 ' + hits.length + '일 중 다음 날 코스피가 같은 방향으로 움직인 날은 ' + same + '일(' + Math.round(same / hits.length * 100) + '%)입니다.'); }
+  lines.forEach((t) => box.append(el('p', t)));
+});
+dash.draw('signalRows', (tb) => {
+  const s = dash.data('nightLink');
+  tb.replaceChildren();
+  if (s.status !== 'ok') { const tr = el('tr'); const td = el('td', s.status === 'error' ? '불러오지 못했습니다.' : '불러오는 중', 'l muted'); td.colSpan = 5; tr.append(td); tb.append(tr); return; }
+  const u = usDate(); const me = s.data.find((r) => r.date === u);
+  const bi = me && me.gap != null ? bucketOf(me.gap) : -1;
+  bucketStats(s.data.filter((r) => r.gap != null && r.kospi_next != null && r.date < u)).forEach((b, i) => {
+    const tr = el('tr', null, i === bi ? 'hit' : '');
+    tr.append(el('td', b.t + (i === bi ? ' (이번)' : ''), 'l'), el('td', b.n + '일'), el('td', b.mean == null ? '—' : sg(b.mean) + '%', cls(b.mean)), el('td', b.med == null ? '—' : sg(b.med) + '%', cls(b.med)), el('td', b.n ? b.up + '일 (' + Math.round(b.up / b.n * 100) + '%)' : '—'));
+    tb.append(tr);
+  });
+});
+function summary(box, mk) {
+  const s = dash.data('mkt_days');
+  box.replaceChildren();
+  if (s.status !== 'ok') { box.textContent = s.status === 'error' ? '불러오지 못했습니다.' : '—'; box.classList.toggle('dash-skeleton', s.status === 'loading'); return; }
+  box.classList.remove('dash-skeleton');
+  const r = s.data.find((d) => d.date === mkDate(mk) && d.market === mk);
+  if (!r) { box.append(el('p', mk !== '나스닥100' && isPre() ? '오늘 장이 끝나면 채워집니다.' : '이날 자료가 없습니다.', 'muted')); return; }
+  const us = mk === '나스닥100';
+  const main = us ? r.etf_ret : r.cap_ret;
+  const top = el('div');
+  top.append(el('span', r.index_est == null ? '—' : nf(r.index_est.toFixed(2)), 'big'), el('span', main == null ? '' : sg(main) + '%', 'chg ' + cls(main)));
+  const kv = el('div', null, 'kv');
+  const add = (k, v, c) => kv.append(el('span', k), el('span', v, c));
+  if (us) add('구성 종목으로 다시 계산한 등락', sg(r.cap_ret) + '%', cls(r.cap_ret));
+  add('오른 종목 / 내린 종목', nf(r.up) + ' / ' + nf(r.down));
+  add('보통 종목 등락 (중간값)', sg(r.med_ret) + '%', cls(r.med_ret));
+  add('20일선 위 종목 비율', r.above_ma20 == null ? '—' : r.above_ma20 + '%');
+  add('20일 신고가 / 신저가', r.new_hi20 == null ? '—' : nf(r.new_hi20) + ' / ' + nf(r.new_lo20));
+  add('거래대금', us ? '$' + nf(r.amt_usd_b) + 'B' : nf(r.amt_eok) + '억');
+  add('상위 10종목 거래대금 비중', r.top10_share + '%');
+  box.append(top, kv);
+}
+dash.draw('sumK', (z) => summary(z, '코스피'));
+dash.draw('sumQ', (z) => summary(z, '코스닥'));
+dash.draw('sumN', (z) => summary(z, '나스닥100'));
+dash.draw('sumNLabel', (z) => { const u = usDate(); z.textContent = '나스닥100 (QQQ 종가)' + (u ? ', 미국 ' + label(u) : ''); });
+function context(all, mk, day) {
+  const h = all.filter((d) => d.market === mk && d.date <= day).sort((a, b) => (a.date < b.date ? -1 : 1));
+  const r = h[h.length - 1]; if (!r || h.length < 21) return '';
+  const w = h.slice(-20); const hi = d3.max(w, (d) => d.index_est);
+  const dd = (r.index_est / hi - 1) * 100;
+  let k = 0; for (let i = h.length - 1; i >= 0 && h[i].cap_ret != null && Math.sign(h[i].cap_ret) === Math.sign(r.cap_ret) && r.cap_ret !== 0; i--) k++;
+  const avgAbs = d3.mean(h.slice(-21, -1), (d) => Math.abs(d.cap_ret));
+  const out = [];
+  out.push(dd > -0.5 ? '최근 20거래일 고점 근처에 있습니다.' : '최근 20거래일 고점보다 ' + Math.abs(dd).toFixed(1) + '% 아래입니다.');
+  if (k >= 3) out.push(k + '거래일 연속 ' + (r.cap_ret > 0 ? '상승' : '하락') + '입니다.');
+  if (avgAbs > 0) { const m = Math.abs(r.cap_ret) / avgAbs; if (m >= 1.8) out.push('오늘 움직임은 최근 20일 평균 하루 변동폭(' + avgAbs.toFixed(1) + '%)의 ' + m.toFixed(1) + '배로 큰 편입니다.'); else if (m <= 0.4) out.push('최근 20일 평균 하루 변동폭(' + avgAbs.toFixed(1) + '%)보다 훨씬 조용했습니다.'); }
+  const br = h.filter((d) => d.above_ma20 != null).map((d) => d.above_ma20);
+  if (r.above_ma20 != null && br.length >= 40) { const pct = br.filter((x) => x < r.above_ma20).length / br.length * 100; if (pct <= 10) out.push('20일선 위 종목 비율(' + r.above_ma20 + '%)이 자료가 있는 ' + br.length + '일 중 하위 ' + Math.max(1, Math.round(pct)) + '%로, 종목 대부분이 과하게 밀린 상태입니다.'); else if (pct >= 90) out.push('20일선 위 종목 비율(' + r.above_ma20 + '%)이 자료가 있는 ' + br.length + '일 중 상위 ' + Math.max(1, Math.round(100 - pct)) + '%로, 많이 달아오른 상태입니다.'); }
+  return out.join(' ');
+}
+dash.draw('readout', (box) => {
+  const s = dash.data('mkt_days'), m = dash.data('movers');
+  box.replaceChildren();
+  if (s.status !== 'ok' || m.status !== 'ok') { box.textContent = '—'; return; }
+  const lines = [];
+  ['코스피', '코스닥', '나스닥100'].forEach((mk) => {
+    const day = mkDate(mk);
+    const r = s.data.find((d) => d.date === day && d.market === mk);
+    if (!r || r.cap_ret == null) return;
+    const us = mk === '나스닥100';
+    const main = us ? r.etf_ret : r.cap_ret;
+    const hist = s.data.filter((d) => d.market === mk && d.date <= day).sort((a, b) => (a.date < b.date ? -1 : 1));
+    const prev = hist[hist.length - 2];
+    const gap = r.cap_ret - r.med_ret;
+    let t = (us ? '미국 ' + label(day) + ' 나스닥100 ' : mk + ' ') + (main >= 0 ? '상승' : '하락') + ' ' + sg(main) + '%. ';
+    if (Math.abs(gap) >= 1) t += gap < 0 ? '보통 종목(중간값 ' + sg(r.med_ret) + '%)보다 지수가 더 빠져, 대형주가 하락을 키운 날입니다. ' : '보통 종목(중간값 ' + sg(r.med_ret) + '%)보다 지수가 더 올라, 대형주만 오른 날입니다. ';
+    else t += '지수와 보통 종목(중간값 ' + sg(r.med_ret) + '%)이 비슷하게 움직였습니다. ';
+    const mv = m.data.filter((x) => x.date === day && x.market === mk && x.side === (r.cap_ret >= 0 ? 'up' : 'down')).sort((a, b) => a.rank - b.rank).slice(0, 2);
+    if (mv.length === 2 && Math.abs(r.cap_ret) >= 0.5) { const share = (mv[0].contrib_pp + mv[1].contrib_pp) / r.cap_ret * 100; if (share >= 30) t += mv[0].name + '·' + mv[1].name + ' 두 종목이 지수 움직임의 ' + Math.round(share) + '%를 만들었습니다. '; }
+    const pa = us ? prev && prev.amt_usd_b : prev && prev.amt_eok, ca = us ? r.amt_usd_b : r.amt_eok;
+    if (pa) { const ch = (ca / pa - 1) * 100; if (Math.abs(ch) >= 20) t += '거래대금은 전날보다 ' + Math.round(Math.abs(ch)) + '% ' + (ch > 0 ? '늘었습니다. ' : '줄었습니다. '); }
+    t += context(s.data, mk, day);
+    lines.push(t.trim());
+  });
+  if (!lines.length) { box.textContent = '—'; return; }
+  lines.forEach((t) => box.append(el('p', t)));
+});
+function emptyRow(tb, s, n) { const tr = el('tr'); const td = el('td', s.status === 'error' ? '불러오지 못했습니다.' : s.status === 'ok' ? (isPre() && S.mk !== '나스닥100' ? '오늘 한국 장이 끝나면 채워집니다. 나스닥100을 누르면 밤사이 미국 장을 볼 수 있습니다.' : '이날 자료가 없습니다.') : '불러오는 중', 'l muted'); td.colSpan = n; tr.append(td); tb.append(tr); }
+function moverRows(tb, side) {
+  const s = dash.data('movers');
+  tb.replaceChildren();
+  if (s.status !== 'ok') { emptyRow(tb, s, 3); return; }
+  const rows = s.data.filter((x) => x.date === mkDate(S.mk) && x.market === S.mk && x.side === side).sort((a, b) => a.rank - b.rank);
+  if (!rows.length) { emptyRow(tb, s, 3); return; }
+  rows.forEach((x) => {
+    const tr = el('tr'); tr.dataset.key = [x.date, x.market, x.side, x.rank].join(',');
+    tr.append(el('td', x.name, 'l'), el('td', sg(x.chg), cls(x.chg)), el('td', sg(x.contrib_pp, 3), cls(x.contrib_pp)));
+    tb.append(tr);
+  });
+}
+dash.draw('upRows', (tb) => moverRows(tb, 'up'));
+dash.draw('downRows', (tb) => moverRows(tb, 'down'));
+const won = (eok) => eok >= 10000 ? (eok / 10000).toFixed(2) + '조' : nf(eok) + '억';
+dash.draw('actRows', (tb) => {
+  const s = dash.data('active');
+  tb.replaceChildren();
+  if (s.status !== 'ok') { emptyRow(tb, s, 3); return; }
+  const us = S.mk === '나스닥100';
+  const rows = s.data.filter((x) => x.date === mkDate(S.mk) && x.market === S.mk).sort((a, b) => (us ? b.amt_usd_m - a.amt_usd_m : b.amt_eok - a.amt_eok));
+  if (!rows.length) { emptyRow(tb, s, 3); return; }
+  rows.forEach((x) => {
+    const tr = el('tr'); tr.dataset.key = [x.date, x.market, x.code].join(',');
+    tr.append(el('td', x.name, 'l'), el('td', us ? '$' + (x.amt_usd_m / 1000).toFixed(1) + 'B' : won(x.amt_eok)), el('td', x.chg == null ? '' : sg(x.chg), cls(x.chg)));
+    tb.append(tr);
+  });
+});
+dash.draw('healthChart', (box) => {
+  const s = dash.data('mkt_days');
+  box.replaceChildren();
+  if (s.status !== 'ok') { box.append(el('p', s.status === 'error' ? '차트를 불러오지 못했습니다.' : '—', 'muted')); return; }
+  const mk = S.mk, us = mk === '나스닥100';
+  const rows = s.data.filter((d) => d.market === mk && d.index_est != null).sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (!rows.length) return;
+  const W = box.clientWidth || 640, H1 = 160, H2 = 110, gap = 26, m = {l: 52, r: 14, t: 14, b: 26};
+  const H = m.t + H1 + gap + H2 + m.b;
+  const pd = (d) => new Date(d + 'T12:00:00Z');
+  const x = d3.scaleUtc().domain(d3.extent(rows, (d) => pd(d.date))).range([m.l, W - m.r]);
+  const y1 = d3.scaleLinear().domain(d3.extent(rows, (d) => d.index_est)).nice().range([m.t + H1, m.t]);
+  const y2 = d3.scaleLinear().domain([0, 100]).range([m.t + H1 + gap + H2, m.t + H1 + gap]);
+  const svg = d3.select(box).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', '0 0 ' + W + ' ' + H).attr('role', 'img').attr('aria-label', mk + (us ? ' QQQ 종가' : ' 추정 지수') + '와 20일선 위 종목 비율');
+  const grid = (g) => g.call((q) => q.select('.domain').remove()).call((q) => q.selectAll('.tick line').style('stroke', 'var(--cds-chart-grid)'));
+  svg.append('g').attr('transform', 'translate(' + m.l + ',0)').call(d3.axisLeft(y1).ticks(4).tickFormat(d3.format(',')).tickSize(-(W - m.l - m.r)).tickPadding(6)).call(grid);
+  svg.append('g').attr('transform', 'translate(' + m.l + ',0)').call(d3.axisLeft(y2).tickValues([0, 50, 100]).tickFormat((d) => d + '%').tickSize(-(W - m.l - m.r)).tickPadding(6)).call(grid);
+  svg.append('g').attr('transform', 'translate(0,' + (H - m.b) + ')').call(d3.axisBottom(x).ticks(Math.max(3, Math.floor(W / 110))).tickFormat(d3.utcFormat('%-m월 %-d일')).tickSize(0).tickPadding(8)).call((q) => q.select('.domain').remove());
+  svg.append('text').attr('x', m.l + 6).attr('y', m.t + 12).text(us ? 'QQQ 종가 (달러)' : '추정 지수');
+  svg.append('text').attr('x', m.l).attr('y', m.t + H1 + gap - 8).text('20일선 위 종목 비율');
+  svg.append('path').datum(rows).attr('d', d3.line().x((d) => x(pd(d.date))).y((d) => y1(d.index_est))).style('fill', 'none').style('stroke', dash.colors[0]).style('stroke-width', 2);
+  const br = rows.filter((d) => d.above_ma20 != null);
+  svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y2(50)).attr('y2', y2(50)).style('stroke', 'var(--cds-chart-reference)').style('stroke-dasharray', '3 3');
+  svg.append('path').datum(br).attr('d', d3.line().x((d) => x(pd(d.date))).y((d) => y2(d.above_ma20))).style('fill', 'none').style('stroke', dash.colors[1] || dash.colors[0]).style('stroke-width', 1.8);
+  const day = mkDate(mk);
+  if (day && rows.find((d) => d.date === day)) { const xd = x(pd(day)); svg.append('line').attr('x1', xd).attr('x2', xd).attr('y1', m.t).attr('y2', H - m.b).style('stroke', 'var(--color-fg)').style('opacity', 0.35); }
+  const tip = el('div', null, 'tip'); tip.hidden = true; box.append(tip);
+  const bis = d3.bisector((d) => pd(d.date)).center;
+  svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b).style('fill', 'transparent')
+    .on('pointermove', (ev) => {
+      const d = rows[bis(rows, x.invert(d3.pointer(ev)[0]))]; if (!d) return;
+      const ch = us ? d.etf_ret : d.cap_ret;
+      tip.replaceChildren(...[(us ? '미국 ' : '') + label(d.date), (us ? 'QQQ ' : '추정 지수 ') + nf(d.index_est.toFixed(2)) + ' (' + sg(ch) + '%)', '20일선 위 ' + (d.above_ma20 == null ? '—' : d.above_ma20 + '%'), '오른 종목 ' + nf(d.up) + ' / 내린 종목 ' + nf(d.down)].map((t) => el('div', t)));
+      tip.hidden = false; const px = x(pd(d.date)); tip.style.left = Math.max(0, Math.min(px + 10, W - 200)) + 'px'; tip.style.top = (m.t + 4) + 'px';
+    })
+    .on('pointerleave', () => { tip.hidden = true; })
+    .on('click', (ev) => {
+      const d = rows[bis(rows, x.invert(d3.pointer(ev)[0]))]; if (!d) return;
+      let target = d.date;
+      if (us) { const l = dash.data('dayList'); const ks = l.status === 'ok' ? l.data.map((q) => q.date).filter((q) => q > d.date).sort() : []; if (!ks.length) return; target = ks[0]; }
+      S.day = target; const sel = document.querySelector('[data-draw=daySel]'); if (sel) sel.value = target; redrawAll();
+    });
+});
+
+dash.draw('updInfo', (z) => { const m = DATA.meta; z.textContent = m && m.updated_at ? '마지막 갱신 ' + m.updated_at.replace('T', ' ').slice(0, 16) + ' (한국 시간)' : ''; });
+const FILES = ['mkt_days', 'movers', 'active', 'us_ref', 'notes', 'meta'];
+const runCalcs = () => Object.entries(CALC).forEach(([id, o]) => { if (o.inputs.every((i) => DATA[i] !== undefined)) { try { DATA[id] = o.fn(...o.inputs.map((i) => DATA[i])); } catch (e) { ERR[id] = true; console.error(id, e); } } });
+const renderAll = () => { runCalcs(); Object.keys(DRAWS).forEach((id) => dash.draw(id)); };
+renderAll();
+Promise.all(FILES.map((f) => fetch('data/' + f + '.json?v=' + Date.now()).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); }).then((j) => { DATA[f] = j; }).catch(() => { ERR[f] = true; if (f === 'notes') DATA[f] = []; }))).then(renderAll);
+let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => dash.draw('healthChart'), 150); });
+})();
+</script>
+</body>
+</html>
