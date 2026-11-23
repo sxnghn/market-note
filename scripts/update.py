@@ -99,8 +99,19 @@ def parse_cap(html):
         if not m:
             continue
         sh = num(txt(tds[6]))
-        out.append({'code': m.group(1), 'name': txt(tds[1]), 'shares': (sh or 0) * 1000})
+        out.append({'code': m.group(1), 'name': txt(tds[1]), 'shares': (sh or 0) * 1000,
+                    'close': num(txt(tds[2])), 'pct': pct(txt(tds[4])), 'vol': num(txt(tds[5])) or 0.0})
     return out
+
+
+def list_stamp(html):
+    """(date, time) of the list page; time is '99:99' once it says 장종료 (closed)."""
+    m = re.search(r'class="time_(live|end)">[^<]*</span>\s*(\d{4})\.(\d\d)\.(\d\d)(?:\s+(\d\d):(\d\d))?', html)
+    if not m:
+        return None, None
+    kind, y, mo, d, hh, mm = m.groups()
+    t = '99:99' if kind == 'end' else '%s:%s' % (hh or '00', mm or '00')
+    return '%s-%s-%s' % (y, mo, d), t
 
 
 def parse_day(html):
@@ -127,6 +138,9 @@ def add_years(rows, today):
     return res
 
 
+LIST_STAMP = {}
+
+
 def kr_list(sec):
     stocks, page = [], 1
     while True:
@@ -134,6 +148,8 @@ def kr_list(sec):
         with ThreadPoolExecutor(6) as ex:
             htmls = list(ex.map(lambda n: get(ET + 'mdl_capital_list?varMarketSec=%d&varPage=%d' % (sec, n)), batch))
         empty = False
+        if page == 1 and htmls:
+            LIST_STAMP[sec] = list_stamp(htmls[0])
         for h in htmls:
             rows = parse_cap(h)
             if not rows:
@@ -263,11 +279,26 @@ def update_kr(state):
     log('KR history done, failed', fails)
     if fails > len(stocks) * 0.05:
         raise RuntimeError('too many failed stocks: %d' % fails)
+    # The per-stock daily table is posted late (often the next day). The list page
+    # already has today's close, so add today from it after 15:30 if missing.
+    stamps = [LIST_STAMP.get(1), LIST_STAMP.get(2)]
+    today = NOW.date().isoformat()
+    if all(st_ and st_[0] == today and st_[1] >= '15:30' for st_ in stamps):
+        added = 0
+        for s in stocks:
+            h = hist.get(s['code'])
+            if not h or s.get('close') is None or any(x[0] == today for x in h):
+                continue
+            h.insert(0, (today, s['close'], s['pct'], s['close'] * s['vol'] / 1e6))
+            added += 1
+        log('KR today from list page:', added)
     all_dates = sorted({x[0] for h in hist.values() for x in h})
     if boot:
         wanted = all_dates[1:]
     else:
-        wanted = [d for d in all_dates if d > kr_old[-1]]
+        # recompute the last stored day too, so a list-page day gets replaced
+        # by the official daily table once it is posted
+        wanted = [d for d in all_dates if d >= kr_old[-1]]
     if not wanted:
         log('KR: no new trading day')
         return False
@@ -286,8 +317,10 @@ def update_kr(state):
             for i in range(idx - 1, -1, -1):
                 rows[i]['index_est'] = round(rows[i + 1]['index_est'] / (1 + rows[i + 1]['cap_ret'] / 100), 2)
         else:
-            last = max((r for r in days if r['market'] == mk), key=lambda r: r['date'])
-            lv = last['index_est']
+            base = [r for r in days if r['market'] == mk and r['date'] < rows[0]['date']]
+            if not base:
+                continue
+            lv = max(base, key=lambda r: r['date'])['index_est']
             for r in rows:
                 lv = round(lv * (1 + r['cap_ret'] / 100), 2)
                 r['index_est'] = lv
