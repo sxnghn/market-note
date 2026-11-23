@@ -1,0 +1,47 @@
+name: update
+
+on:
+  schedule:
+    - cron: '20 22 * * 0-4'   # 07:20 KST, Mon-Fri: previous US session
+    - cron: '45 7 * * 1-5'    # 16:45 KST, Mon-Fri: Korean close
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['index.html', '.github/workflows/update.yml']
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - name: Fetch data
+        if: github.event_name != 'push'
+        run: python scripts/update.py
+      - name: Commit data
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "market-bot"
+          git config user.email "market-bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -m "data $(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M')"
+          git push
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deploy
+        uses: actions/deploy-pages@v4
